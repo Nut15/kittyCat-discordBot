@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-TOKEN = os.getenv('TOKEN')
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 keepAlive.keep_alive()
 
@@ -51,6 +51,7 @@ async def remove(ctx, arg):
 @bot.command(help="Returns a list of all added works' titles.")
 async def list(ctx):
     await ctx.send(scraper.return_readable_scrape_list())
+
 
 
 
