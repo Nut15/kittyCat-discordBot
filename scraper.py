@@ -2,8 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 from bs4 import SoupStrainer
 from lxml import html
+import chinese_converter
 import re
 import cProfile
+
+regex_pc = r'^https://www.manhuagui.com/comic/'
+regex_mobile = r'https://m.manhuagui.com/comic/'
+regex_gen = r'https://'
 
 #future extension: search - with dict, where name is key and val is link
 #TODO: 
@@ -63,14 +68,22 @@ def __get_work_title(response : requests.Response):
     """
     tree = html.fromstring(response.content)
     title = tree.xpath('//div[@class="book-title"]/h1/text()')
-    return title[0]
+    return chinese_converter.to_simplified(title[0])
 
 
 
 
 
-def __write_work_in_fomat(f, new_URL, title):
-    f.write(f'\n{new_URL}|||{title}')
+def __add_to_scrape_list(f, title, new_URL):
+    f.write(f'\n{title}|||{new_URL}')
+
+"""def get_scrape_list():
+    with open("list.txt", "r", encoding="utf-8") as f:
+        lst = f.read().strip().splitlines()
+        for i in lst:
+            work = i.split(sep="|||")
+            scrape_list_dict[work[0]] = work[1]
+        f.close()"""
 
 def __get_scrape_list(type : str = "dict"):
     """
@@ -83,12 +96,12 @@ def __get_scrape_list(type : str = "dict"):
     
     Returns
     ---
-    type = "dict" : dictionary 
-        {"URL":"title"}, URLs and titles of all works added, where each URL corresponds to each title.
-    type = "keys" : set-like object
-        URLs of all works added.
-    type = "values" : set-like object
+    type = "all" : dictionary 
+        {"title":"URL"}, URLs and titles of all works added, where each URL corresponds to each title.
+    type = "name" : set-like object
         Titles of all works added.
+    type = "URL" : set-like object
+        URLs of all works added.
     """
     work_dict = {}
     with open("list.txt", "r", encoding="utf-8") as f:
@@ -98,36 +111,55 @@ def __get_scrape_list(type : str = "dict"):
             work_dict[work[0]] = work[1]
     f.close()
     match type:
-        case "keys":
+        case "name":
             return work_dict.keys()
-        case "values":
+        case "URL":
             return work_dict.values()
-        case "dict":
+        case "all":
             return work_dict
+
+def __is_in_scrape_list(work_name_list, name_substring) -> str:
+    for name in work_name_list:
+        if name_substring in name:
+            return name
+        else:
+            return None
+
+"""def __get_work_URL(work_dict, name_substring) -> str:
+    work_name = __is_in_scrape_list(work_name_list=work_dict.values(), name_substring=name_substring)
+    if work_name:
+        return work_dict[work_name]
+    else:
+        return None"""
+
+
+
 
 def scrape(): #change getting list to get_list function
     info_lst = []
-    with open("list.txt", "r") as f:
-        href_lst = __get_scrape_list("keys")
-        for href in href_lst:
-            info_lst.append(__runLxml(href))
-    f.close()
+    href_lst = __get_scrape_list(type="URL")
+    for href in href_lst:
+        info_lst.append(__runLxml(href))
     return info_lst
 
 def add_to_scrape_list(new_URL):
     new_URL = new_URL.strip()
-    hrefs = __get_scrape_list(type="keys")
+
+    if re.match(regex_mobile, new_URL):
+        new_URL = new_URL.replace("https://m.manhuagui.com/comic/", "https://www.manhuagui.com/comic/")
+
+    hrefs = __get_scrape_list(type="URL")
     if new_URL in hrefs:
         return "work already added."
 
     with open("list.txt", "a", encoding="utf-8") as f:
-        regex = r'^https://www.manhuagui.com/comic/'
-        if re.match(regex, new_URL): # check if has correct format at the start of URL
+        
+        if re.match(regex_pc, new_URL): # check if has correct format at the start of URL
             #check if work is valid
-            response = requests.get(new_URL) 
+            response = requests.get(new_URL)
             if response:
                 title = __get_work_title(response)
-                __write_work_in_fomat(f, new_URL, title)
+                __add_to_scrape_list(f, title, new_URL)
                 f.close()
                 return "added " + title
             else:
@@ -136,28 +168,42 @@ def add_to_scrape_list(new_URL):
         else:
             return "invalid URL entered. perhaps you missed 'https://' ?"
 
-def remove_from_scrape_list(URL_to_del):
-    URL_to_del = URL_to_del.strip()
-    dic = __get_scrape_list()
-    lst = dic.keys()
-    if URL_to_del not in lst:
-        return "work not in list."
-    
-    with open("list.txt", "w") as f:
-        for i in lst:
-            if i == URL_to_del:
-                continue
+def remove_from_scrape_list(name_or_URL):
+    name_or_URL = name_or_URL.strip()
+    scrape_list_dict = __get_scrape_list(type="all")
+    match name_or_URL:
+        case re.match(regex_gen, name_or_URL):
+            URLs = scrape_list_dict.values()
+            if name_or_URL in URLs:
+                with open("list.txt", "w") as f:
+                    for name in scrape_list_dict:
+                        if scrape_list_dict[name] == name_or_URL:
+                            continue
+                        else:
+                            __add_to_scrape_list(f, name, scrape_list_dict[name])
+                    f.close()
+                    return f"{name_or_URL} deleted successfully."
             else:
-                __write_work_in_fomat(f, URL_to_del, dic[URL_to_del])
-        f.close()
-        return "work deleted successfully."
+                return "work not in list."
+        case _:
+            if name in scrape_list_dict:
+                with open("list.txt", "w") as f:
+                    for name1 in scrape_list_dict:
+                        if name1 == name:
+                            continue
+                        else:
+                            __add_to_scrape_list(f, name, scrape_list_dict[name])
+                    f.close()
+                    return f"{name_or_URL} deleted successfully."
+            else:
+                return "work not in list."
 
 def return_readable_scrape_list():
     msg = "added works:"
-    lst = __get_scrape_list(type="values")
-    if len(lst) == 0:
+    names = __get_scrape_list("name")
+    if len(names) == 0:
         return "no works added"
-    for i in lst:
+    for i in names:
         msg += "\n"
         msg += i
     return msg

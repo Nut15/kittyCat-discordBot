@@ -18,6 +18,7 @@ bot = commands.Bot(command_prefix='=', intents=intents)
 
 @bot.event
 async def on_ready():
+    await bot.change_presence(activity=discord.Game("=help for all commands"))
     print(f'logged in as {bot.user}')
 
 @bot.command()
@@ -44,7 +45,7 @@ async def scrape(ctx):
 async def add(ctx, arg):
     await ctx.send(scraper.add_to_scrape_list(arg))
 
-@bot.command(help="Allows user to remove a work from the list of works to be scraped. Argumet inputted = URL of desired work.", brief="Remove a work from the list of works to be scraped.")
+@bot.command(help="Allows user to remove a work from the list of works to be scraped. Argumet inputted = URL OR name of desired work.", brief="Remove a work from the list of works to be scraped.")
 async def remove(ctx, arg):
     await ctx.send(scraper.remove_from_scrape_list(arg))
 
