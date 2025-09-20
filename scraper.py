@@ -10,6 +10,9 @@ regex_pc = r'^https://www.manhuagui.com/comic/'
 regex_mobile = r'https://m.manhuagui.com/comic/'
 regex_gen = r'https://'
 
+NAME = 0
+URL = 1
+
 #future extension: search - with dict, where name is key and val is link
 #TODO: 
 # -add help to each command, 
@@ -117,6 +120,13 @@ def __get_scrape_list(type : str = "dict"):
             return work_dict.values()
         case "all":
             return work_dict
+        
+def __is_name_or_URL(name_or_URL):
+    name_or_URL = name_or_URL.strip()
+    if re.match(regex_gen, name_or_URL):
+        return URL
+    else:
+        return NAME
 
 def __is_in_scrape_list(work_name_list, name_substring) -> str:
     for name in work_name_list:
@@ -135,12 +145,26 @@ def __is_in_scrape_list(work_name_list, name_substring) -> str:
 
 
 
-def scrape(): #change getting list to get_list function
-    info_lst = []
-    href_lst = __get_scrape_list(type="URL")
-    for href in href_lst:
-        info_lst.append(__runLxml(href))
-    return info_lst
+def scrape(name_or_URL : str) -> str:
+    scrape_lst_dict = __get_scrape_list()
+    if __is_name_or_URL(name_or_URL) == URL:
+        return __runLxml(name_or_URL)
+        #link database? - see notion for grid
+    else:
+        try:
+            return __runLxml(scrape_lst_dict[name_or_URL])
+        except:
+            return "invlid argument entered."
+
+def scrape() -> dict:
+    info_dict = {}
+    scrape_lst_dict = __get_scrape_list()
+    try:
+        for name in scrape_lst_dict:
+            info_dict[name] = __runLxml(scrape_lst_dict[name])
+        return info_dict
+    except:
+        return "no works added."
 
 def add_to_scrape_list(new_URL):
     new_URL = new_URL.strip()
@@ -169,34 +193,36 @@ def add_to_scrape_list(new_URL):
             return "invalid URL entered. perhaps you missed 'https://' ?"
 
 def remove_from_scrape_list(name_or_URL):
-    name_or_URL = name_or_URL.strip()
     scrape_list_dict = __get_scrape_list(type="all")
-    match name_or_URL:
-        case re.match(regex_gen, name_or_URL):
-            URLs = scrape_list_dict.values()
-            if name_or_URL in URLs:
-                with open("list.txt", "w") as f:
-                    for name in scrape_list_dict:
-                        if scrape_list_dict[name] == name_or_URL:
-                            continue
-                        else:
-                            __add_to_scrape_list(f, name, scrape_list_dict[name])
-                    f.close()
-                    return f"{name_or_URL} deleted successfully."
-            else:
+    if __is_name_or_URL == URL:
+            in_list = False
+            with open("list.txt", "w", encoding="utf-8") as f:
+                for name in scrape_list_dict:
+                    if scrape_list_dict[name] == name_or_URL:
+                        in_list = True
+                        continue
+                    else:
+                        __add_to_scrape_list(f, name, scrape_list_dict[name])
+            f.close()
+            if in_list == False:
                 return "work not in list."
-        case _:
-            if name in scrape_list_dict:
-                with open("list.txt", "w") as f:
-                    for name1 in scrape_list_dict:
-                        if name1 == name:
-                            continue
-                        else:
-                            __add_to_scrape_list(f, name, scrape_list_dict[name])
-                    f.close()
-                    return f"{name_or_URL} deleted successfully."
             else:
+                return f"{name_or_URL} deleted successfully."
+            
+    else:
+            in_list = False
+            with open("list.txt", "w", encoding="utf-8") as f:
+                for name1 in scrape_list_dict:
+                    if name1.find(name_or_URL) != -1:
+                        in_list = True
+                        continue
+                    else:
+                        __add_to_scrape_list(f, name, scrape_list_dict[name])
+            f.close()
+            if in_list == False:
                 return "work not in list."
+            else:
+                return f"{name_or_URL} deleted successfully."
 
 def return_readable_scrape_list():
     msg = "added works:"
