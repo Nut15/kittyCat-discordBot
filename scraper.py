@@ -2,6 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 from bs4 import SoupStrainer
 from lxml import html
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 import chinese_converter
 import re
 import cProfile
@@ -118,7 +121,7 @@ def __get_scrape_list(type : str = "dict"):
             return work_dict.keys()
         case "URL":
             return work_dict.values()
-        case "all":
+        case "dict":
             return work_dict
         
 def __is_name_or_URL(name_or_URL):
@@ -144,29 +147,29 @@ def __is_in_scrape_list(work_name_list, name_substring) -> str:
 
 
 
+def __add_name_to_scrape_list(new_name):
+    names = __get_scrape_list("name")
+    if new_name in names:
+        return "work already added."
 
-def scrape(name_or_URL : str) -> str:
-    scrape_lst_dict = __get_scrape_list()
-    if __is_name_or_URL(name_or_URL) == URL:
-        return __runLxml(name_or_URL)
-        #link database? - see notion for grid
-    else:
-        try:
-            return __runLxml(scrape_lst_dict[name_or_URL])
-        except:
-            return "invlid argument entered."
+    options = Options()
+    options.add_argument("--headless")
+    driver = webdriver.Chrome(options=options)
 
-def scrape() -> dict:
-    info_dict = {}
-    scrape_lst_dict = __get_scrape_list()
+    utf8encoded = new_name.encode("utf-8").hex("%")
+    url = f"https://www.manhuagui.com/s/%{utf8encoded}.html"
+    driver.get(url)
     try:
-        for name in scrape_lst_dict:
-            info_dict[name] = __runLxml(scrape_lst_dict[name])
-        return info_dict
+        driver.find_element(By.XPATH, '//a[@class="bcover"]').click()
+        work_URL = driver.current_url
     except:
-        return "no works added."
+        return "no works found. work not added."
 
-def add_to_scrape_list(new_URL):
+    with open("list.txt", "a", encoding="utf-8") as f:
+        __add_to_scrape_list(f, new_name, work_URL)
+    return "added " + new_name
+
+def __add_URL_to_scrape_list(new_URL):
     new_URL = new_URL.strip()
 
     if re.match(regex_mobile, new_URL):
@@ -192,9 +195,38 @@ def add_to_scrape_list(new_URL):
         else:
             return "invalid URL entered. perhaps you missed 'https://' ?"
 
+
+
+def scrape(name_or_URL : str) -> str:
+    scrape_lst_dict = __get_scrape_list()
+    if __is_name_or_URL(name_or_URL) == URL:
+        return __runLxml(name_or_URL)
+        #link database? - see notion for grid
+    else:
+        try:
+            return __runLxml(scrape_lst_dict[name_or_URL])
+        except:
+            return "invlid argument entered."
+
+def scrape() -> dict:
+    info_dict = {}
+    scrape_lst_dict = __get_scrape_list()
+    try:
+        for name in scrape_lst_dict:
+            info_dict[name] = __runLxml(scrape_lst_dict[name])
+        return info_dict
+    except:
+        return "no works added."
+    
+def add_to_scrape_list(name_or_URL):
+    if __is_name_or_URL(name_or_URL) == URL:
+        return __add_URL_to_scrape_list(name_or_URL)
+    else:
+        return __add_name_to_scrape_list(name_or_URL)
+
 def remove_from_scrape_list(name_or_URL):
-    scrape_list_dict = __get_scrape_list(type="all")
-    if __is_name_or_URL == URL:
+    scrape_list_dict = __get_scrape_list()
+    if __is_name_or_URL(name_or_URL) == URL:
             in_list = False
             with open("list.txt", "w", encoding="utf-8") as f:
                 for name in scrape_list_dict:
@@ -233,14 +265,3 @@ def return_readable_scrape_list():
         msg += "\n"
         msg += i
     return msg
-
-
-
-def __test(inp):
-    with open("list.txt", "r") as f:
-        print(f.read().find())
-
-        if inp in f.read():
-            print("yes")
-        else:
-            print("no")
