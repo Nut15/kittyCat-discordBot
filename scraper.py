@@ -58,21 +58,21 @@ def __runLxml(href : str):
     
     return final_string
 
-def __get_work_title(response : requests.Response):
+def __get_work_title(response_str : str):
     """
     Get the title of a work after GET request is completed.
     
     Parameter
     ---
-    response : Response object
-        Target work's webpage (returned after GET request fulfilled).
+    response_str : page source of html
+        Page source of target work's webpage.
 
     Return
     ---
     title : string
         Title of target work.
     """
-    tree = html.fromstring(response.content)
+    tree = html.fromstring(response_str)
     title = tree.xpath('//div[@class="book-title"]/h1/text()')
     return chinese_converter.to_simplified(title[0])
 
@@ -131,43 +131,52 @@ def __is_name_or_URL(name_or_URL):
     else:
         return NAME
 
-def __is_in_scrape_list(work_name_list, name_substring) -> str:
+def __return_full_work_name(work_name_list, name_substring) -> str:
     for name in work_name_list:
         if name_substring in name:
             return name
-        else:
-            return None
+    return None
 
-"""def __get_work_URL(work_dict, name_substring) -> str:
-    work_name = __is_in_scrape_list(work_name_list=work_dict.values(), name_substring=name_substring)
+def __get_work_URL(work_dict, name_substring) -> str:
+    work_name = __return_full_work_name(work_name_list=work_dict.keys(), name_substring=name_substring)
     if work_name:
         return work_dict[work_name]
     else:
-        return None"""
+        return None
+
+def __is_URL_in_scrape_list(work_URL_list, url):
+    for u in work_URL_list:
+        if url == u:
+            return True
+    return False
+        
 
 
-
-def __add_name_to_scrape_list(new_name):
-    names = __get_scrape_list("name")
-    if new_name in names:
+def __add_name_to_scrape_list(new_name_substring):
+    scrape_list = __get_scrape_list()
+    if __return_full_work_name(scrape_list.keys(), new_name_substring):
         return "work already added."
-
+    
     options = Options()
-    options.add_argument("--headless")
+    options.add_argument("--headless=new")
     driver = webdriver.Chrome(options=options)
 
-    utf8encoded = new_name.encode("utf-8").hex("%")
+    utf8encoded = new_name_substring.encode("utf-8").hex("%")
     url = f"https://www.manhuagui.com/s/%{utf8encoded}.html"
     driver.get(url)
     try:
         driver.find_element(By.XPATH, '//a[@class="bcover"]').click()
         work_URL = driver.current_url
+        work_name = __get_work_title(driver.page_source)
     except:
         return "no works found. work not added."
 
+    if __is_URL_in_scrape_list(scrape_list.values(), work_URL):
+        return "work already added."
+
     with open("list.txt", "a", encoding="utf-8") as f:
-        __add_to_scrape_list(f, new_name, work_URL)
-    return "added " + new_name
+        __add_to_scrape_list(f, work_name, work_URL)
+    return "added " + work_name
 
 def __add_URL_to_scrape_list(new_URL):
     new_URL = new_URL.strip()
@@ -185,7 +194,7 @@ def __add_URL_to_scrape_list(new_URL):
             #check if work is valid
             response = requests.get(new_URL)
             if response:
-                title = __get_work_title(response)
+                title = __get_work_title(response.content)
                 __add_to_scrape_list(f, title, new_URL)
                 f.close()
                 return "added " + title
@@ -197,18 +206,18 @@ def __add_URL_to_scrape_list(new_URL):
 
 
 
-def scrape(name_or_URL : str) -> str:
+def scrape_n(name_or_URL : str) -> str:
     scrape_lst_dict = __get_scrape_list()
     if __is_name_or_URL(name_or_URL) == URL:
         return __runLxml(name_or_URL)
         #link database? - see notion for grid
     else:
         try:
-            return __runLxml(scrape_lst_dict[name_or_URL])
+            return __runLxml(__get_work_URL(__get_scrape_list(), name_or_URL))
         except:
             return "invlid argument entered."
 
-def scrape() -> dict:
+def scrape_d() -> dict:
     info_dict = {}
     scrape_lst_dict = __get_scrape_list()
     try:
